@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "strings.h": "c",
+        "string.h": "c",
+        "*.tcc": "c",
+        "type_traits": "c"
+    }
+}
