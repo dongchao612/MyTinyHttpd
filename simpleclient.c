@@ -29,9 +29,12 @@ int main(int argc, char *argv[])
         perror("oops: client1");
         exit(1);
     }
+
     write(clnt_sock, &ch, 1);
     read(clnt_sock, &ch, 1);
     printf("char from server = %c\n", ch);
+
     close(clnt_sock);
+    
     exit(0);
 }

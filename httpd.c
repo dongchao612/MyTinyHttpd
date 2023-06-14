@@ -38,7 +38,8 @@ typedef struct sockaddr_in sockaddr_in;
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
 
 // 宏定义，是否是空格
-#define ISspace(x) isspace((int)(x))
+// #define ISspace(x) isspace((int)(x))
+#define ISspace(x) (x == ' ')
 
 /**************************************************/
 // 错误输出
@@ -54,7 +55,7 @@ void accept_request(void *arg);
 // 如果是下个字符则不处理，将c置为\n，结束。如果读到的数据为0中断，或者小于0，也视为结束，c置为\n
 int get_line(int, char *, int);
 
-// 没有发现文件
+// 没有发现文件 404 错误
 void not_found(int);
 
 // 接读取文件返回给请求的http客户端
@@ -69,10 +70,10 @@ void cat(int, FILE *);
 // 执行cgi文件
 void execute_cgi(int, const char *, const char *, const char *);
 
-// 错误请求
+// 错误请求 400错误
 void bad_request(int client);
 
-// 无法执行cgi文件
+// 无法执行cgi文件 500错误
 void cannot_execute(int client);
 
 // 如果不是Get或者Post，就报方法没有实现
@@ -143,11 +144,11 @@ int startup(int *port)
     }
 
     memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_family = AF_INET; // ipv4
     serv_addr.sin_port = htons(*port);
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
-    if ((setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) < 0)
+    if ((setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) == -1)
     {
         error_die("setsockopt failed");
     }
@@ -168,16 +169,17 @@ int startup(int *port)
         {
             error_die("getsockname");
         }
+
         *port = ntohs(serv_addr.sin_port);
     }
 
     // 监听
-    if (listen(serv_sock, 5) == -1)
+    if (listen(serv_sock, 5) == -1) // 开始监听
     {
         error_die("listen");
     }
 
-    return serv_sock;
+    return serv_sock; // 返回服务器套接字
 }
 
 /**********************************************************************/
@@ -243,19 +245,17 @@ void accept_request(void *arg)
     //"GET / HTTP/1.1\n"
     // 读http 请求的第一行数据（request line），把请求方法存进 method 中
     int numchars = get_line(clnt_sock, buf, sizeof(buf));
-    // printf("\nclnt_sock = %d\tnumchars = %d\tbuf = %s", clnt_sock, numchars, buf);
 
     int i = 0, j = 0;
     char method[255];
     // 第一行字符串提取Get
-    while (!ISspace(buf[i]) && (i < sizeof(method) - 1))
+    while (!ISspace(buf[i]) && (i < sizeof(method) - 1)) // 根据空格定位请求方法
     {
         method[i] = buf[i];
         i++;
     }
     j = i;
     method[i] = '\0';
-    // printf("method = %s\n", method);
 
     // 如果请求的方法不是 GET 或 POST 任意一个的话就直接发送 response 告诉客户端没实现该方法
     if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))
@@ -286,7 +286,7 @@ void accept_request(void *arg)
         j++;
     }
     url[i] = '\0';
-    // printf("url = %s\n", url);
+
     /*注意：如果你的http的网址为http://192.168.0.23:47310/index.html
     那么你得到的第一条http信息为GET /index.html HTTP/1.1，那么
     解析得到的就是/index.html */
@@ -310,7 +310,6 @@ void accept_request(void *arg)
             query_string++;       // 使指针指向字符 ？后面的那个字符
         }
     }
-    // printf("query_string = %s\n", query_string);
 
     char path[512];
     // 将前面分隔两份的前面那份字符串，拼接在字符串htdocs的后面之后就输出存储到数组 path 中。
@@ -322,13 +321,11 @@ void accept_request(void *arg)
     {
         strcat(path, "index.html");
     }
-    // printf("path = %s\n", path); // path = htdocs/index.html
 
     struct stat st;
     // 获得文件信息 在系统上去查询该文件是否存在
     if (stat(path, &st) == -1)
     {
-        // printf("path error\n");
         // 如果不存在，那把这次 http 的请求后续的内容(head 和 body)全部读完并忽略
         while ((numchars > 0) && strcmp("\n", buf))
         {
@@ -340,7 +337,6 @@ void accept_request(void *arg)
     }
     else
     {
-        // printf("path OK\n");
         if ((st.st_mode & __S_IFMT) == __S_IFDIR)
         {
             // 如果这个文件是个目录，那就需要再在 path 后面拼接一个"/index.html"的字符串
@@ -355,14 +351,12 @@ void accept_request(void *arg)
         }
         if (!cgi)
         {
-            // printf("serve_file\n");
-            ////如果不需要 cgi 机制的话，
-            // 接读取文件返回给请求的http客户端
+            // 如果不需要 cgi 机制的话，
+            //  接读取文件返回给请求的http客户端
             serve_file(clnt_sock, path);
         }
         else
         {
-            // printf("execute_cgi\n");
             // 执行cgi文件  如果需要则调用
             execute_cgi(clnt_sock, path, method, query_string);
         }
@@ -382,16 +376,11 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
     // 缓冲区
     char buf[1024];
 
-    // 2根管道
-    int cgi_output[2];
-    int cgi_input[2];
-
     // 进程pid和状态
     pid_t pid;
     int status;
 
     int i;
-    char c;
 
     // 读取的字符数
     int numchars = 1;
@@ -416,6 +405,7 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
     {
         /* POST */
         numchars = get_line(client, buf, sizeof(buf));
+        
         while ((numchars > 0) && strcmp("\n", buf))
         {
             /*如果是POST请求，就需要得到Content-Length，
@@ -439,16 +429,20 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
     }
 
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
-    send(client, buf, strlen(buf), 0);
+    send(client, buf, strlen(buf), 0); // 服务器响应信息
 
-    // 建立output管道
+    // 2根管道
+    int cgi_output[2];
+    int cgi_input[2];
+
+    // 建立output管道 子进程写管道
     if (pipe(cgi_output) < 0)
     {
         cannot_execute(client);
         return;
     }
 
-    // 建立input管道
+    // 建立input管道 子进程读管道
     if (pipe(cgi_input) < 0)
     {
         cannot_execute(client);
@@ -466,20 +460,19 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
 
     // fork进程，子进程用于执行CGI
     // 父进程用于收数据以及发送子进程处理的回复数据
-    if ((pid = fork()) < 0)
+    if ((pid = fork()) < 0) // 子线程创建失败
     {
         cannot_execute(client);
         return;
     }
     if (pid == 0) /* child: CGI script */
     {
-        char meth_env[255];
+
         char query_env[255];
         char length_env[255];
 
         // 子进程输出重定向到output管道的1端
         dup2(cgi_output[1], 1);
-
         // 子进程输入重定向到input管道的0端
         dup2(cgi_input[0], 0);
 
@@ -488,8 +481,10 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
         close(cgi_input[1]);
 
         // CGI环境变量
+        char meth_env[255];
         sprintf(meth_env, "REQUEST_METHOD=%s", method);
-        putenv(meth_env);
+        putenv(meth_env); // 修改环境变量
+
         if (strcasecmp(method, "GET") == 0)
         {
             sprintf(query_env, "QUERY_STRING=%s", query_string);
@@ -512,6 +507,9 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
         // 关闭无用管道口
         close(cgi_output[1]);
         close(cgi_input[0]);
+
+        char c;
+
         if (strcasecmp(method, "POST") == 0)
         {
             for (i = 0; i < content_length; i++)
@@ -553,7 +551,6 @@ void cannot_execute(int client)
     send(client, buf, strlen(buf), 0);
     sprintf(buf, "<P>Error prohibited CGI execution.\r\n");
     send(client, buf, strlen(buf), 0);
-
 }
 
 /**********************************************************************/
@@ -576,7 +573,6 @@ void bad_request(int client)
     sprintf(buf, "such as a POST without a Content-Length.\r\n");
     send(client, buf, sizeof(buf), 0);
 }
-
 
 /**********************************************************************/
 /* Give a client a 404 not found status message. */
@@ -631,12 +627,11 @@ void serve_file(int client, const char *filename)
     resource = fopen(filename, "r");
     if (resource == NULL)
     {
-        // printf("resource==NULL\n");
         not_found(client);
     }
     else
     {
-        // printf("resource!=NULL\n");
+
         headers(client, filename);
         cat(client, resource);
     }
@@ -687,7 +682,7 @@ int main(void)
     int serv_sock = -1, clnt_sock = -1; // 服务器端套接字 客户端套接字
     sockaddr_in clnt_addr;
 
-    int port = 4000; // 端口号【自动获取】
+    int port = 0; // 端口号【自动获取】
 
     pthread_t newthread;
 
@@ -705,6 +700,7 @@ int main(void)
         }
 
         /* accept_request(&clnt_sock);*/
+
         // 每次收到请求，创建一个线程来处理接受到的请求
         // 把client_sock转成地址作为参数传入pthread_create
         if (pthread_create(&newthread, NULL, (void *)accept_request, (void *)&clnt_sock) != 0)
