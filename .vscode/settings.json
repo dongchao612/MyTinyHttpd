@@ -3,6 +3,7 @@
         "strings.h": "c",
         "string.h": "c",
         "*.tcc": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "stat.h": "c"
     }
 }
