@@ -179,6 +179,7 @@ void accept_request(void *arg)
     char buf[1024];
 
     //"GET / HTTP/1.1\n"
+    // 读http 请求的第一行数据（request line），把请求方法存进 method 中
     int numchars = get_line(clnt_sock, buf, sizeof(buf));
     // printf("\nclnt_sock = %d\tnumchars = %d\tbuf = %s", clnt_sock, numchars, buf);
 
@@ -194,7 +195,7 @@ void accept_request(void *arg)
     method[i] = '\0';
     // printf("method = %s\n", method);
 
-    // 判断是Get还是Post
+    // 如果请求的方法不是 GET 或 POST 任意一个的话就直接发送 response 告诉客户端没实现该方法
     if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))
     {
         unimplemented(clnt_sock);
@@ -204,15 +205,18 @@ void accept_request(void *arg)
     int cgi = 0;
     // 如果是POST，cgi置为1
     if (strcasecmp(method, "POST") == 0)
+    {
         cgi = 1;
+    }
 
     i = 0;
+    // 跳过所有的空白字符(空格)
     while (ISspace(buf[j]) && (j < numchars))
     {
         j++;
     }
     char url[255];
-    //  得到 "/"
+    //  //然后把 URL 读出来放到 url 数组中 得到 "/"
     while (!ISspace(buf[j]) && (i < sizeof(url) - 1) && (j < numchars))
     {
         url[i] = buf[j];
@@ -226,23 +230,29 @@ void accept_request(void *arg)
     解析得到的就是/index.html */
 
     char *query_string = NULL;
+    // 如果这个请求是一个 GET 方法的话,用一个指针指向 url
     if (strcasecmp(method, "GET") == 0)
     {
         query_string = url;
+        // 去遍历这个 url，跳过字符 ？前面的所有字符，如果遍历完毕也没找到字符 ？则退出循环
         while ((*query_string != '?') && (*query_string != '\0'))
         {
             query_string++;
         }
+
+        // 退出循环后检查当前的字符是 ？还是字符串(url)的结尾
         if (*query_string == '?')
         {
-            cgi = 1;
-            *query_string = '\0';
-            query_string++;
+            cgi = 1;              // 如果是 ？ 的话，证明这个请求需要调用 cgi，将 cgi 标志变量置一(true)
+            *query_string = '\0'; // 从字符 ？ 处把字符串 url 给分隔会两份
+            query_string++;       // 使指针指向字符 ？后面的那个字符
         }
     }
     // printf("query_string = %s\n", query_string);
 
     char path[512];
+    // 将前面分隔两份的前面那份字符串，拼接在字符串htdocs的后面之后就输出存储到数组 path 中。
+    //  相当于现在 path 中存储着一个字符串
     sprintf(path, "htdocs%s", url);
 
     // 默认地址，解析到的路径如果为/，则自动加上index.html
@@ -253,17 +263,17 @@ void accept_request(void *arg)
     // printf("path = %s\n", path); // path = htdocs/index.html
 
     struct stat st;
-    // 获得文件信息
+    // 获得文件信息 在系统上去查询该文件是否存在
     if (stat(path, &st) == -1)
     {
         // printf("path error\n");
-        // 把所有http信息读出然后丢弃
+        // 如果不存在，那把这次 http 的请求后续的内容(head 和 body)全部读完并忽略
         while ((numchars > 0) && strcmp("\n", buf))
         {
             numchars = get_line(clnt_sock, buf, sizeof(buf));
         }
 
-        // 没有找到
+        // 然后返回一个找不到文件的 response 给客户端
         not_found(clnt_sock);
     }
     else
@@ -271,24 +281,27 @@ void accept_request(void *arg)
         // printf("path OK\n");
         if ((st.st_mode & __S_IFMT) == __S_IFDIR)
         {
+            // 如果这个文件是个目录，那就需要再在 path 后面拼接一个"/index.html"的字符串
             strcat(path, "/index.html");
         }
         // 如果你的文件默认是有执行权限的，自动解析成cgi程序，
         // 如果有执行权限但是不能执行，会接受到报错信号
         if ((st.st_mode & S_IXUSR) || (st.st_mode & S_IXGRP) || (st.st_mode & S_IXOTH))
         {
+              //如果这个文件是一个可执行文件，不论是属于用户/组/其他这三者类型的，就将 cgi 标志变量置一
             cgi = 1;
         }
         if (!cgi)
         {
             // printf("serve_file\n");
+            ////如果不需要 cgi 机制的话，
             // 接读取文件返回给请求的http客户端
             serve_file(clnt_sock, path);
         }
         else
         {
             // printf("execute_cgi\n");
-            // 执行cgi文件
+            // 执行cgi文件  如果需要则调用
             execute_cgi(clnt_sock, path, method, query_string);
         }
     }
@@ -544,6 +557,7 @@ void cat(int client, FILE *resource) // 读取服务器上某个文件写到 soc
 {
     char buf[1024];
 
+//从文件文件描述符中读取指定内容
     fgets(buf, sizeof(buf), resource);
     while (!feof(resource))
     {
