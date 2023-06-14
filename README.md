@@ -205,9 +205,7 @@
 5. 处理连接请求
 
     ```c
-    int accept(int socket,
-               struct sockaddr *restrict address,//客户端的地址信
-               socklen_t *restrict address,address_len);
+    int accept(int socket,struct sockaddr *restrict address,socklen_t *restrict address,address_len);
     // 返回一个新的与客户端建立连接的套接字
     ```
 
