@@ -1,5 +1,231 @@
 # MyTinyHttpd
 一个简易的 http 服务器
+
+## 目的
+1. 复习socket套接字编程
+2. 复习http协议及实现
+3. 复习进程与线程的创建
+4. 熟悉一些基础概念 
+5. 了解c++ cgi
+6. pipe进程间通信
+
+### HTTP协议:
+超文本传输协议（英文：HyperText Transfer Protocol，缩写：HTTP），是应用层的通信协议，通常，由HTTP客户端发起一个请求，创建一个到服务器指定端口（默认是**80**端口）的TCP连接。HTTP服务器则在那个端口监听客户端的请求。一旦收到请求，服务器会向客户端返回一个状态，比如 **"HTTP/1.1 200 0K"**，以及返回的内容，如请求的文件。
+
+### HTTP工作的原理:
+1. 客户端连接到Web服务器。
+一个HTTP客户端，通常是浏览器，与Web服务器的HTTP端口（默认为80）建立一个TCP套接字连接
+2. 发送HTTP请求
+通过TCP套接字，客户端向web服务器发送一个文本的请求报文，一个请求报文有:
+
+    ```text
+    请求行\r\n
+    请求头部\r\n
+    \rln
+    请求数据\r\n
+    ```
+
+3. 服务器接受请求并返回HTTP响应
+服务器read套接字，解析请求文本，定位请求资源。服务器将资源write到TCP套接字，由客户端读取。一个响应文本由:
+    ```text
+    状态行\r\n
+    响应头部\r\n\r\n
+    响应数据
+    ```
+
+4. 客户端浏览器解析HTML内容
+客户端read套接字，解析响应文本，查看状态码。处理和显示信息.。
+5. 断开TCP连接 (请求头connection=close)
+6. HTTP请求格式(请求协议)
+   
+    ```text
+    --------------------------------------------
+    |请求方法|空格符|URL|空格符|协议版本|回车符|换行符|
+    --------------------------------------------
+    --------------------------------------------
+    |头部字段名|:|         值        |回车符|换行符|
+    --------------------------------------------
+                ......................  
+    --------------------------------------------
+    |头部字段名|:|         值        |回车符|换行符|
+    --------------------------------------------
+    -----------
+    |'\r'|'\n'|
+    -----------
+    --------------------------------------------
+                ......................                      请求数据
+    --------------------------------------------
+    ```
+    例子
+    ```text
+    POST /htdocs/index.html HTTP/1.1 \r\n
+    HOST www.soment.com              \r\n
+    Content-Length:9                 \r\n
+    \r\n
+    color=red
+    ```
+
+7. HTTP响应格式(响应协议)
+
+    ```text
+    ------------------------------------------------------
+    |协议版本|空格符|状态玛|空格符|协议文字描述|回车符|换行符|
+    ------------------------------------------------------
+    --------------------------------------------
+    |头部字段名|:|         值        |回车符|换行符|
+    --------------------------------------------
+                ......................  
+    --------------------------------------------
+    |头部字段名|:|         值        |回车符|换行符|
+    --------------------------------------------
+    -----------
+    |'\r'|'\n'|
+    -----------
+    --------------------------------------------
+                ......................                      响应数据
+    --------------------------------------------
+    ```
+    例子
+    ```text
+    HTTP/1.1 200 OK        \r\n
+    Content-Type:text/html \r\n
+    Content-Length:362     \r\n
+    \r\n
+    <html>
+    </html>
+    ```
+
+8. 状态玛
+
+-  400：客户端请求有语法错误，不能被服务器所理解
+-  404：服务器未找到请求的页面
+-  500：服务器内部遇到错误，无法完成请求
+
+
+### 进程 正在被执行的程序
+
+1. 进程id
+    ```c
+    pid_t id;// 每个进程都有唯一的id标识进程 类型是int
+    ```
+2. fork()
+    ```c
+    pid=fork();// 创建子进程父子进程除了进程id不一样，其他都一样
+    ```
+    pid = 0 子进程
+    pid > 0 父进程
+
+3. exec函数族
+    ```c
+    int execl(const char *path,const char*arg0,...);
+    // path 程序的路径 /htdocs/test.cgi
+    execl("/htdocs/test.cgi","/htdocs/test.cgi",NULL);
+    ```
+4. waitpid()函数
+    ```c
+    pid_t waitpid(pit_t pid,int *stat_loc,int options);// 父进程等待子进程执行结束,清理子进程
+    ```
+
+### 线程 程序中一个函数的一次执行
+1. 线程id
+
+    ```c
+    pthread_t tid;// 进程可以包含多个线程 线程id在特定进程中唯一
+    ```
+2. pthread_create() //创建线程
+
+    ```c
+    int pthread_create(pthread_t* restrict tidp,const pthread_attr_t* restrict_attr,void* (*start_rtn)(void*),void *restrict arg);
+    /*
+    (1)tidp：事先创建好的pthread_t类型的参数。成功时tidp指向的内存单元被设置为新创建线程的线程ID。
+    (2)attr：用于定制各种不同的线程属性。通常直接设为NULL。
+    (3)start_rtn：新创建线程从此函数开始运行。无参数是arg设为NULL即可。
+    (4)arg：start_rtn函数的参数。无参数时设为NULL即可。有参数时输入参数的地址。当多于一个参数时应当使用结构体传入。
+    */
+
+    void* accept_request(void*);
+    pthread_t newthread；
+    pthread_create(&newthread,NULL,accept_request,(void*)10);
+    ```
+ 3. pthread_self() 
+ 某个线程查询自己的线程id是什么
+ 1. 线程退出
+    ```c
+    void pthread_exit(vois* retval);
+    ```
+ 2. 线程分离
+
+    ```c
+    void pthread_detach(vois* retval); //线程结束后不需要清理 不会产生僵尸进程
+    ```
+
+### 套接字socket
+1. 套接字文件描述符
+    ```c
+    int sfd;
+    ```
+2. 创建socket()
+    ```c
+    int socket( int domain,int type,int protocol);
+    /*
+    (1)domain：一个地址描述。仅支持AF_INET格式，也就是说ARPA Internet地址格式。
+    (2)type：指定socket类型。新套接口的类型描述类型，如TCP（SOCK_STREAM）和UDP(SOCK_DGRAM)。常用的socket类型有，SOCK_STREAM、SOCK_DGRAM、SOCK_RAW、SOCK_PACKET、SOCK_SEQPACKET等等。
+    (3)protocol：顾名思义，就是指定协议。套接口所用的协议。如调用者不想指定，可用0。常用的协议有，IPPROTO_TCP、IPPROTO_UDP、IPPROTO_STCP、IPPROTO_TIPC等,它们分别对应TCP传输协议、UDP传输协议、STCP传输协议、TIPC传输协议。
+    */
+    ```
+
+3. 绑定ip和端口
+    ```c
+    int bind(int socket,              //socket()创建的socket
+             struct sockaddr *address, //
+             socklen_t address_len); //sizeof(address)
+    ```
+    struct sockaddr 与 struct sockaddr_in 两个结构体大小相同
+
+    ```c
+    struct sockaddr{
+        sa_family_t sin_family;//地址族
+        char sa_data[14];//14字节，包含套接字的地址和端口信息
+    }
+    struct sockaddr_in{
+        sa_family_t sin_family;//地址族
+        unit16_t sin_port;//16位两字节端口号
+        struct in_addr sin_addr;//32位4字节ip地址
+        char sin_zero[8];//未使用
+    }
+    struct in_addr{
+        In_addr_t s_addr;//32位4字节ip地址
+    }
+    // sin_port和sin_addr都必须是为网络字节序 大端排序方式
+    // 计算机显示的数字都是主机字节序
+    ```
+
+4. int listen(int socket, int backlog);
+   使套接字开始监听链接，并制定连接队列的大
+5. 处理连接请求
+
+    ```c
+    int accept(int socket,
+               struct sockaddr *restrict address,//客户端的地址信
+               socklen_t *restrict address,address_len);
+    // 返回一个新的与客户端建立连接的套接字
+    ```
+
+### pipe和CGI
+1. pipe
+    ```c
+    int filedes[2];
+    int pipe(int filedes);
+    filedes[0];// 读端
+    filedes[1];// 写端
+    ```
+2. dup2
+    ```c
+    int dup2(int filedes,int filedes2); //复制文件描述符filedes到filedes2
+    ```
+3. CGI
+
+
 ## 函数声明
 ``` text
 /**************************************************/
@@ -64,3 +290,5 @@ void unimplemented(int);
 （10） 关闭与浏览器的连接，完成了一次 HTTP 请求与回应，因为 HTTP 是无连接的。
 
 ![图解](https://img-blog.csdnimg.cn/20210909201533131.png?)
+
+
