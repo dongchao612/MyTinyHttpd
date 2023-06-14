@@ -63,4 +63,4 @@ void unimplemented(int);
 
 （10） 关闭与浏览器的连接，完成了一次 HTTP 请求与回应，因为 HTTP 是无连接的。
 
-[](https://img-blog.csdnimg.cn/20210909201533131.png?)
+[图解](https://img-blog.csdnimg.cn/20210909201533131.png?)
