@@ -290,4 +290,12 @@ void unimplemented(int);
 
 ![图解](https://img-blog.csdnimg.cn/20210909201533131.png?)
 
+```sh
 
+    simplog.writeLog(SIMPLOG_FATAL, "Test Fatal");
+    simplog.writeLog(SIMPLOG_ERROR, "Test Error");
+    simplog.writeLog(SIMPLOG_INFO, "Test Info");
+    simplog.writeLog(SIMPLOG_WARN, "Test Warn");
+    simplog.writeLog(SIMPLOG_DEBUG, "Test Debug");
+    simplog.writeLog(SIMPLOG_VERBOSE, "Test Verbose");
+```

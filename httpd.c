@@ -33,6 +33,8 @@
 
 #include <pthread.h>
 
+#include "include/simplog.h"
+
 typedef struct sockaddr_in sockaddr_in;
 
 #define SERVER_STRING "Server: jdbhttpd/0.1.0\r\n"
@@ -117,7 +119,8 @@ void unimplemented(int client)
 // 把错误信息写到 perror 并退出。
 void error_die(const char *sc)
 {
-    perror(sc);
+    // perror(sc);
+    simplog.writeLog(SIMPLOG_FATAL, sc);
     exit(1);
 }
 
@@ -140,6 +143,7 @@ int startup(int *port)
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
     if (serv_sock == -1)
     {
+        simplog.writeLog(SIMPLOG_ERROR, "socket error");
         error_die("socket");
     }
 
@@ -150,11 +154,13 @@ int startup(int *port)
 
     if ((setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on))) == -1)
     {
+        simplog.writeLog(SIMPLOG_ERROR, "setsockopt error");
         error_die("setsockopt failed");
     }
 
     if (bind(serv_sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) == -1)
     {
+        simplog.writeLog(SIMPLOG_ERROR, "bind error");
         error_die("bind");
     }
 
@@ -167,6 +173,7 @@ int startup(int *port)
         */
         if (getsockname(serv_sock, (struct sockaddr *)&serv_addr, &namelen) == -1)
         {
+            simplog.writeLog(SIMPLOG_ERROR, "getsockname error");
             error_die("getsockname");
         }
 
@@ -176,6 +183,7 @@ int startup(int *port)
     // 监听
     if (listen(serv_sock, 5) == -1) // 开始监听
     {
+        simplog.writeLog(SIMPLOG_ERROR, "listen error");
         error_die("listen");
     }
 
@@ -232,10 +240,6 @@ int get_line(int sock, char *buf, int size)
  * Parameters: the socket connected to the client */
 /**********************************************************************/
 
-/*
-处理从套接字上监听到的一个 HTTP 请求
-在这里可以很大一部分地体现服务器处理请求流程。
-*/
 void accept_request(void *arg)
 {
     int clnt_sock = *(int *)arg;
@@ -245,6 +249,8 @@ void accept_request(void *arg)
     //"GET / HTTP/1.1\n"
     // 读http 请求的第一行数据（request line），把请求方法存进 method 中
     int numchars = get_line(clnt_sock, buf, sizeof(buf));
+    simplog.writeLog(SIMPLOG_INFO, "numchars = %d",numchars);
+    simplog.writeLog(SIMPLOG_INFO, "buf = %s",buf);
 
     int i = 0, j = 0;
     char method[255];
@@ -256,10 +262,13 @@ void accept_request(void *arg)
     }
     j = i;
     method[i] = '\0';
+    simplog.writeLog(SIMPLOG_INFO, "method = %s",method);
+
 
     // 如果请求的方法不是 GET 或 POST 任意一个的话就直接发送 response 告诉客户端没实现该方法
     if (strcasecmp(method, "GET") && strcasecmp(method, "POST"))
     {
+        simplog.writeLog(SIMPLOG_FATAL, "Unimplemented");
         unimplemented(clnt_sock);
         return;
     }
@@ -268,6 +277,7 @@ void accept_request(void *arg)
     // 如果是POST，cgi置为1
     if (strcasecmp(method, "POST") == 0)
     {
+        simplog.writeLog(SIMPLOG_DEBUG, "cgi = %d",cgi);
         cgi = 1;
     }
 
@@ -286,6 +296,7 @@ void accept_request(void *arg)
         j++;
     }
     url[i] = '\0';
+    simplog.writeLog(SIMPLOG_INFO, "url = %s",url);
 
     /*注意：如果你的http的网址为http://192.168.0.23:47310/index.html
     那么你得到的第一条http信息为GET /index.html HTTP/1.1，那么
@@ -315,17 +326,20 @@ void accept_request(void *arg)
     // 将前面分隔两份的前面那份字符串，拼接在字符串htdocs的后面之后就输出存储到数组 path 中。
     //  相当于现在 path 中存储着一个字符串
     sprintf(path, "htdocs%s", url);
+    simplog.writeLog(SIMPLOG_INFO, "path = %s",path);
 
     // 默认地址，解析到的路径如果为/，则自动加上index.html
     if (path[strlen(path) - 1] == '/')
     {
         strcat(path, "index.html");
     }
+    simplog.writeLog(SIMPLOG_INFO, "path = %s",path);
 
     struct stat st;
     // 获得文件信息 在系统上去查询该文件是否存在
     if (stat(path, &st) == -1)
     {
+        simplog.writeLog(SIMPLOG_ERROR, "file is not exist");
         // 如果不存在，那把这次 http 的请求后续的内容(head 和 body)全部读完并忽略
         while ((numchars > 0) && strcmp("\n", buf))
         {
@@ -337,6 +351,7 @@ void accept_request(void *arg)
     }
     else
     {
+        simplog.writeLog(SIMPLOG_INFO, "file is exist");
         if ((st.st_mode & __S_IFMT) == __S_IFDIR)
         {
             // 如果这个文件是个目录，那就需要再在 path 后面拼接一个"/index.html"的字符串
@@ -405,7 +420,7 @@ void execute_cgi(int client, const char *path, const char *method, const char *q
     {
         /* POST */
         numchars = get_line(client, buf, sizeof(buf));
-        
+
         while ((numchars > 0) && strcmp("\n", buf))
         {
             /*如果是POST请求，就需要得到Content-Length，
@@ -677,17 +692,18 @@ void headers(int client, const char *filename) // 把 HTTP 响应的头部写到
     strcpy(buf, "\r\n");
     send(client, buf, strlen(buf), 0);
 }
+
 int main(void)
 {
     int serv_sock = -1, clnt_sock = -1; // 服务器端套接字 客户端套接字
     sockaddr_in clnt_addr;
 
-    int port = 0; // 端口号【自动获取】
+    int port = 0; // 端口号 =0, 则自动获取
 
     pthread_t newthread;
 
     serv_sock = startup(&port);
-    printf("httpd running on port %d\n", port);
+    simplog.writeLog(SIMPLOG_INFO, "httpd running on port %d\n", port);
 
     while (1)
     {
@@ -696,17 +712,21 @@ int main(void)
 
         if (clnt_sock == -1)
         {
+            simplog.writeLog(SIMPLOG_ERROR, "accept error");
             error_die("accept");
         }
 
-        /* accept_request(&clnt_sock);*/
+        accept_request(&clnt_sock);
 
-        // 每次收到请求，创建一个线程来处理接受到的请求
+    #if 0
+        // 每次收到请求, 创建一个线程来处理接受到的请求
         // 把client_sock转成地址作为参数传入pthread_create
         if (pthread_create(&newthread, NULL, (void *)accept_request, (void *)&clnt_sock) != 0)
         {
-            perror("pthread_create");
+            simplog.writeLog(SIMPLOG_ERROR, "pthread_create error");
+            error_die("accpthread_createept");
         }
+    #endif
     }
     close(serv_sock);
 
