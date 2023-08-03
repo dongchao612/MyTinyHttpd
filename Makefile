@@ -1,7 +1,8 @@
 all: httpd
 
 httpd: httpd.c
-	gcc httpd.c -lpthread  -o httpd 
+	# make clean
+	gcc httpd.c -lpthread  -L lib -lsimplog -o httpd
 
 clean:
-	rm httpd
+	rm httpd default.log

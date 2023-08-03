@@ -4,6 +4,9 @@
         "string.h": "c",
         "*.tcc": "c",
         "type_traits": "c",
-        "stat.h": "c"
+        "stat.h": "c",
+        "stdio.h": "c",
+        "inet.h": "c",
+        "simplog.h": "c"
     }
 }

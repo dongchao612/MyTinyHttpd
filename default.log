@@ -1,0 +1,26 @@
+[2023-08-03 11:17:10]	INFO  : httpd running on port 33495
+
+[2023-08-03 11:17:22]	INFO  : numchars = 15
+[2023-08-03 11:17:22]	INFO  : buf = GET / HTTP/1.1
+
+[2023-08-03 11:17:22]	INFO  : method = GET
+[2023-08-03 11:17:22]	INFO  : url = /
+[2023-08-03 11:17:22]	INFO  : path = htdocs/
+[2023-08-03 11:17:22]	INFO  : path = htdocs/index.html
+[2023-08-03 11:17:22]	INFO  : file is exist
+[2023-08-03 11:17:22]	INFO  : numchars = 26
+[2023-08-03 11:17:22]	INFO  : buf = GET /img/srs.png HTTP/1.1
+
+[2023-08-03 11:17:22]	INFO  : method = GET
+[2023-08-03 11:17:22]	INFO  : url = /img/srs.png
+[2023-08-03 11:17:22]	INFO  : path = htdocs/img/srs.png
+[2023-08-03 11:17:22]	INFO  : path = htdocs/img/srs.png
+[2023-08-03 11:17:22]	INFO  : file is exist
+[2023-08-03 11:17:22]	INFO  : numchars = 26
+[2023-08-03 11:17:22]	INFO  : buf = GET /favicon.ico HTTP/1.1
+
+[2023-08-03 11:17:22]	INFO  : method = GET
+[2023-08-03 11:17:22]	INFO  : url = /favicon.ico
+[2023-08-03 11:17:22]	INFO  : path = htdocs/favicon.ico
+[2023-08-03 11:17:22]	INFO  : path = htdocs/favicon.ico
+[2023-08-03 11:17:22]	INFO  : file is exist
